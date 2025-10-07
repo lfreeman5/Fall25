@@ -1,5 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import scipy
+import gll_utils
 
 def p_n(xi,N):
     '''
@@ -33,11 +34,9 @@ def p_n_roots_weights(N,max_iters=100,tol=1e-12):
     for i in range(1,N):
         x_i = (1-3*(N-1)/(8*(N-0)**3.)) *\
             np.cos((4*i+1)/(4*(N)+1) * np.pi) # initial guess at root
-        print(f'Polynomial order {N} for i={i} prediction is {x_i}')
         x_i0 = x_i-1e-3 # Initializing point for secant method
 
         for _ in range(max_iters):
-            print(x_i)
             x1 = x_i - p_prime_n(x_i,N)*(x_i0-x_i) / (p_prime_n(x_i0,N)-p_prime_n(x_i,N))
             if(abs(x1-x_i)<tol):
                 points[i] = x1
@@ -52,54 +51,53 @@ def p_n_roots_weights(N,max_iters=100,tol=1e-12):
     points, weights = np.array(points), np.array(weights)
     return points, weights
 
-### Below this point code written by Copilot ###
+def gll_integrate(f,N):
+    '''
+    This function integrates f(x) on domain [-1,1] with GLL quadrature
+    f is callable with argument x
+    N is the order, meaning the integral is calculated with N+1 points
+    '''
+    pts, wts = p_n_roots_weights(N)
+    val = 0
+    for i,p in enumerate(pts):
+        val = val + wts[i]*f(p)
+    return val
 
-def compare_gll_methods(N):
-    """
-    Compare GLL roots/weights from custom function and numpy-based GLL.
-    """
-    # Custom GLL
-    my_points, my_weights = p_n_roots_weights(N)
-    print(f'Custom GLL points:\n{my_points}')
-    print(f'Custom GLL weights:\n{my_weights}')
+def map_function(a,b,f):
+    '''
+        Maps f(x) on interval [a,b] to g(z) on [-1,1]
+        Linear map so T(xi) = (b-a)/2 * xi + (a+b)/2
 
-    # Numpy-based GLL
-    from numpy.polynomial.legendre import legder, legroots, legval
-    if N < 1:
-        raise ValueError("Order N must be >= 1")
-    Pn_coeff = [0]*N + [1]
-    dPn_coeff = legder(Pn_coeff)
-    interior_nodes = legroots(dPn_coeff)
-    np_points = np.concatenate(([-1.0], interior_nodes, [1.0]))
-    np_weights = 2.0 / (N*(N+1) * legval(np_points, Pn_coeff)**2)
-    print(f'Numpy-based GLL points:\n{np_points}')
-    print(f'Numpy-based GLL weights:\n{np_weights}')
+        returns scaled function based on:
+        integral from a to b of f(x) = integral from -1 to 1 of f(T(xi))*(b-a)/2
+    '''
+    def T(xi):
+        return (b-a)/2*xi+(a+b)/2
+    def mapped_scaled_f(xi):
+        return f(T(xi))*(b-a)/2
+    return mapped_scaled_f
 
-    # Compare endpoints and interior nodes
-    print("\nComparison (first and last points should be -1 and 1 for GLL):")
-    print(f"Custom GLL endpoints: {my_points[0]}, {my_points[-1]}")
-    print(f"Numpy-based GLL endpoints: {np_points[0]}, {np_points[-1]}")
-
-    print("\nInterior nodes (custom GLL):", my_points[1:-1])
-    print("Interior nodes (numpy-based GLL):", np_points[1:-1])
-
-    print("\nCustom GLL weights:", my_weights)
-    print("Numpy-based GLL weights:", np_weights)
-
-    print(my_points-np_points)
-    print(my_weights-np_weights)
-
-def check_legendre_polynomial():
-    xi = np.random.uniform(-1, 1)
-    N = np.random.randint(0, 11)
-    val = p_n(xi,N)
-    c = np.zeros(N+1)
-    c[-1] = 1
-    np_val = np.polynomial.legendre.legval(xi, c)
-    print(f'This evaluation: {val} vs np: {np_val} and error: {abs(val-np_val)}')
+def general_integral(a,b,f,N):
+    '''
+    Integrates f(x) from a to b using GLL
+    Uses GLL order N, so N+1 points
+    '''
+    mapped_scaled_func = map_function(a,b,f)
+    return gll_integrate(mapped_scaled_func, N)
     
 if __name__ == '__main__':
-    check_legendre_polynomial()
-    # Compare GLL roots/weights with numpy-based implementation
-    N = 12
-    compare_gll_methods(N)
+    N=18
+    xi_val = -0.75
+    print(f'P_N value for N={N}, xi={xi_val}: My implementation: {p_n(xi_val,N)} np implementation:{gll_utils.eval_pn(xi_val,N)}')
+
+    pts,wts = p_n_roots_weights(N)
+    np_pts, np_wts = gll_utils.gll_pts_wts(N)
+    print(f'Pts/wts for N={N} integration, my implementation:\n{pts}\n{wts}')
+    print(f'Pts/wts for N={N} integration, np implementation:\n{np_pts}\n{np_wts}')
+    
+    f = lambda x: np.exp(x)*np.sin(x)
+    a,b = -2,4
+    my_val = general_integral(a,b,f,N)
+    np_val = gll_utils.integrate_gll(a,b,f,N)
+    print(f'Integral from {a} to {b} of f using: \nMy GLL implementation:{my_val}\nNP GLL: {np_val}\nSciPy Quad: {scipy.integrate.quad(f,a,b,epsabs=1e-12,epsrel=1e-12)[0]}')
+    
