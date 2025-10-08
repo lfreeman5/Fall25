@@ -1,14 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
+import sympy as sp
 pi=np.pi
 
-def exact(x):
-    return np.sin(pi*x)
+### This section allows for arbitrary manufactured solution
+x = sp.Symbol('x')
+F = sp.exp(x)*sp.sin(sp.pi*x)+x-x**2
+f = -sp.diff(F,x,2)
+exact = sp.lambdify(x,F,'numpy')
+forcing_func = sp.lambdify(x,f,'numpy')
 
-L = 1 # Assumed in derivation of manufactured solution
-u_l, u_r = 0, 0
-N = 50 # Number of elements - number of nodes is N+1
+
+L = 2 # No longer assumed
+u_l, u_r = exact(0.0), exact(L)
+N = 15 # Number of elements - number of nodes is N+1
 h = L/N
 
 
@@ -16,9 +22,10 @@ def create_elemental_K():
     K_e=np.array([[1,-1],[-1,1]])*1/h
     return K_e
 
-def create_elemental_f(x_a):
+def create_elemental_f(element_idx):
     f = np.zeros(2)
-    forcing_function = lambda xbar: pi**2 * np.sin(pi*(xbar+x_a)) # we want the function to go from 0 to h
+    start_x = (element_idx-1)*h
+    forcing_function = lambda xbar: forcing_func(xbar+start_x)
     f_phi_1 = lambda x: (1-x/h)*forcing_function(x)
     f_phi_2 = lambda x: (x/h)*forcing_function(x)
     f[0] = quad(f_phi_1, 0, h)[0]
@@ -30,15 +37,15 @@ def assemble_global_K_f():
     K = np.zeros((N+1,N+1))
     f = np.zeros(N+1)
     K[0,:2] = K_e[0]
-    f[0] = create_elemental_f(0)[0]
+    f[0] = create_elemental_f(1)[0]
     for i in range(1,N):
         # Create row i
         K[i,i-1] = K_e[1,0]
         K[i,i+1] = K_e[0,1]
         K[i,i] = K_e[0,0] + K_e[1,1]
-        f[i] = create_elemental_f(h*(i-1))[1] + create_elemental_f(h*(i))[0] # Maybe wrong indices?
+        f[i] = create_elemental_f(i)[1] + create_elemental_f(i+1)[0] # Maybe wrong indices?
     K[-1,-2:] = K_e[-1]
-    f[-1] = create_elemental_f((N-1)*h)[1]
+    f[-1] = create_elemental_f(N)[1]
     return K, f
 
 def restrict_global_K_f(K,f,ul,ur):
@@ -55,18 +62,27 @@ def create_u_N(u,ul,ur):
     u = np.concatenate(([ul],u,[ur]))
     def u_N(x):
         xbar = x%h
-        idx = int(np.round((x-xbar)/h))
-        return u[idx]*(1-xbar)/h + u[idx+1]*xbar/h
+        idx = int(np.floor((x-xbar)/h))
+        return u[idx]*(1-xbar/h) + u[idx+1]*xbar/h
     return u_N
 
+def print_matrix(label,mat):
+    arr = np.array(mat)
+    print(f'{label}:')
+    for row in arr.reshape(-1, arr.shape[-1] if arr.ndim > 1 else 1):
+        print(" ".join(f"{val:12.6g}" for val in row))
+
 if __name__ == '__main__':
+    print(f'{N} Elements, Element size: {h}')
+    print(f"Exact solution: u(x) = {F}")
+    print(f"Problem: -u''(x) = {f} on 0<x<{L}")
     K,f = assemble_global_K_f()
     K,f = restrict_global_K_f(K,f,u_l,u_r)
     u = np.linalg.solve(K,f)
     u_N = create_u_N(u,u_l,u_r)
     
     # Plot the solution
-    x_plot = np.linspace(0, L, 1000)
+    x_plot = np.linspace(0, L, 200,endpoint=False) 
     u_N_vals = [u_N(x) for x in x_plot]
     u_exact_vals = exact(x_plot)
     
