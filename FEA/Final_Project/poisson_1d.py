@@ -6,15 +6,15 @@ pi=np.pi
 
 ### This section allows for arbitrary manufactured solution
 x = sp.Symbol('x')
-F = sp.exp(x)*sp.sin(sp.pi*x)+x-x**2
+F = sp.sin(x*x)*sp.exp(x)
 f = -sp.diff(F,x,2)
 exact = sp.lambdify(x,F,'numpy')
 forcing_func = sp.lambdify(x,f,'numpy')
 
 
-L = 2 # No longer assumed
+L = (5*np.pi)**.5 # No longer assumed L=1
 u_l, u_r = exact(0.0), exact(L)
-N = 15 # Number of elements - number of nodes is N+1
+N = 20 # Number of elements - number of nodes is N+1
 h = L/N
 
 
@@ -82,16 +82,15 @@ if __name__ == '__main__':
     u_N = create_u_N(u,u_l,u_r)
     
     # Plot the solution
-    x_plot = np.linspace(0, L, 200,endpoint=False) 
+    x_plot = np.linspace(0, L, 1000,endpoint=False) 
     u_N_vals = [u_N(x) for x in x_plot]
     u_exact_vals = exact(x_plot)
     
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(6, 4))
     plt.plot(x_plot, u_N_vals, 'b-', label=f'Approximate solution (N={N})', linewidth=2)
     plt.plot(x_plot, u_exact_vals, 'r--', label='Exact solution', linewidth=2)
-    plt.xlabel('x')
-    plt.ylabel('u(x)')
-    plt.title('1D Poisson Equation Solution')
+    plt.xlabel('$x$')
+    plt.ylabel('$u(x)$')
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.show()
