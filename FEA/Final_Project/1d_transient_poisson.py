@@ -5,25 +5,23 @@ import sympy as sp
 pi=np.pi
 
 # Constants
-N = 135 # Number of elements - number of nodes is N+1
-L = 1 # No longer assumed
+N = 10 # Number of elements - number of nodes is N+1
+L = 2 # No longer assumed
 h = L/N
 k = 1
 
 ### This section allows for arbitrary manufactured solution
 x = sp.Symbol('x')
 t = sp.Symbol('t')
-F = x**2 / (t+1)
-f = sp.diff(F, t, 1) - k * sp.diff(F, x, 2)
+F = sp.sin(sp.pi*x)*sp.exp(sp.sin(sp.pi*t))
+f_sym = sp.diff(F, t, 1) - k * sp.diff(F, x, 2)
 exact = sp.lambdify((x, t), F, 'numpy')
-forcing_func = sp.lambdify((x, t), f, 'numpy')
+forcing_func = sp.lambdify((x, t), f_sym, 'numpy')
 u_l = lambda t_val: exact(0.0, t_val)
 u_r = lambda t_val: exact(L, t_val)
 
-
-
 def create_elemental_K():
-    K_e=np.array([[1,-1],[-1,1]])*1/h
+    K_e=np.array([[1,-1],[-1,1]])*k/h
     return K_e
 
 def create_elemental_M():
@@ -43,38 +41,56 @@ def create_elemental_f(element_idx, t_current):
 def assemble_global_K_M_f(t_current):
     K_e = create_elemental_K()
     M_e = create_elemental_M()
-    K = np.zeros((N+1,N+1))
-    M = np.zeros((N+1,N+1))
+    K = np.zeros((N+1, N+1))
+    M = np.zeros((N+1, N+1))
     f = np.zeros(N+1)
-    K[0,:2], M[0,:2] = M_e[0]
-    f[0] = create_elemental_f(1, t_current)[0]
-    for i in range(1,N):
-        # Create row i
-        K[i,i-1], M[i,i-1] = K_e[1,0], M_e[1,0]
-        K[i,i+1], M[i,i+1] = K_e[0,1], M_e[0,1]
-        K[i,i], M[i,i] = K_e[0,0] + K_e[1,1], M_e[0,0] + M_e[1,1]
-        f[i] = create_elemental_f(i)[1] + create_elemental_f(i+1)[0] # Maybe wrong indices?
-    K[-1,-2:] = K_e[-1]
-    f[-1] = create_elemental_f(N)[1]
-    return K, f
+    # loop elements e = 1..N. element e spans nodes [e-1, e]
+    for e in range(1, N+1):
+        n1 = e-1
+        n2 = e
+        fe = create_elemental_f(e, t_current)   
+        K[n1:n2+1, n1:n2+1] += K_e
+        M[n1:n2+1, n1:n2+1] += M_e
+        f[n1] += fe[0]
+        f[n2] += fe[1]
 
-def restrict_global_K_f(K,f,ul,ur):
-    # Applies double-dirichlet boundaries by making K into (N-1)x(N-1)
-    f[1] += 1/h*ul
-    f[-2] += 1/h*ur
+    return K, M, f
 
-    return K[1:-1,1:-1], f[1:-1]
-
-def create_u_N(u,ul,ur):
+def modify_matrices_bcs(A,b,ul,ur):
     '''
-    Creates a piecewise function that represents the approximate solution
+    Modifies A and b for LHS and RHS dirichlet boundary conditions 
     '''
-    u = np.concatenate(([ul],u,[ur]))
-    def u_N(x):
-        xbar = x%h
-        idx = int(np.floor((x-xbar)/h))
-        return u[idx]*(1-xbar/h) + u[idx+1]*xbar/h
-    return u_N
+    A[0,:] *= 0
+    A[:,0] *= 0
+    A[-1,:] *= 0
+    A[0,0], A[-1,-1] = 1, 1
+    b[0] = ul
+    b[-1] = ur
+    return A, b
+
+def timestep(t0, u0, dt):
+    '''
+    advances solution in time by 1 step
+    uses backwards Euler, evaluating things at n+1
+    '''
+    K, M, f = assemble_global_K_M_f(t0+dt)
+    A = M/dt + K
+    b = f + (M@u0)/dt
+    A,b = modify_matrices_bcs(A,b,u_l(t0+dt),u_r(t0+dt))
+    u1 = np.linalg.solve(A,b)
+    return u1
+
+def temporal_solution(tf, dt):
+    x = np.linspace(0,L,N+1)
+    time = np.arange(dt,tf+dt,dt)
+    u0 = exact(x,0.0)
+    u = np.zeros((len(time),N+1))
+    u[0,:] = u0
+    for i,t in enumerate(time):
+        u[i+1,:] = timestep(i*dt, u[i,:], dt)
+        if(i == len(time)-2):
+            break
+    return x,time,u
 
 def print_matrix(label,mat):
     arr = np.array(mat)
@@ -91,41 +107,25 @@ def calc_residual(u_exact, u_N):
 if __name__ == '__main__':
     print(f'{N} Elements, Element size: {h}')
     print(f"Exact solution: u(x) = {F}")
-    print(f"Problem: -u''(x) = {f} on 0<x<{L}")
-    K,f = assemble_global_K_f()
-    K,f = restrict_global_K_f(K,f,u_l,u_r)
-    u = np.linalg.solve(K,f)
-    u_N = create_u_N(u,u_l,u_r)
-    
-    # Plot the solution
-    x_plot = np.linspace(0, L, 200,endpoint=False) 
-    u_N_vals = [u_N(x) for x in x_plot]
-    u_exact_vals = exact(x_plot)
-    
-    plt.figure(figsize=(10, 6))
-    plt.plot(x_plot, u_N_vals, 'b-', label=f'Approximate solution (N={N})', linewidth=2)
-    plt.plot(x_plot, u_exact_vals, 'r--', label='Exact solution', linewidth=2)
-    plt.xlabel('x')
-    plt.ylabel('u(x)')
-    plt.title('1D Poisson Equation Solution')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.show()
+    print(f"Problem: u_t = k*u_xx + {f_sym}on 0<x<{L}")
 
-    residual_Ns = [5,10,15,20,25,30,40,55]
-    residuals = []
-    for rN in residual_Ns:
-        N = rN
-        h = L/N
-        K,f = assemble_global_K_f()
-        K,f = restrict_global_K_f(K,f,u_l,u_r)
-        u = np.linalg.solve(K,f)
-        u_N = create_u_N(u,u_l,u_r)
-        residuals.append(calc_residual(exact,u_N))
+    # Parameters for time integration
+    tf = 1.0  # final time
+    dt = 0.01 # time step
 
-    plt.figure(figsize=(8,5))
-    plt.loglog(residual_Ns, residuals, 'o-', linewidth=2, markersize=5)
-    plt.xlabel('$N$')
-    plt.ylabel('$L2$ residual $||u - u_N||$')
-    plt.grid(True, which='both', alpha=0.3)
+    # Compute transient solution
+    x, time, u = temporal_solution(tf, dt)
+
+    # Plot at each timestep
+    x_fine = np.linspace(0, L, 10 * N + 1)
+    for i, t in enumerate(np.insert(time, 0, 0.0)):
+        plt.ylim((1.1*np.min(u),1.1*np.max(u)))
+        plt.clf()
+        plt.plot(x, u[i, :], label='Numerical')
+        plt.plot(x_fine, exact(x_fine, t), '--', label='Exact')
+        plt.title(f"t = {t:.3f}")
+        plt.xlabel('x')
+        plt.ylabel('u(x, t)')
+        plt.legend()
+        plt.pause(0.05)
     plt.show()
