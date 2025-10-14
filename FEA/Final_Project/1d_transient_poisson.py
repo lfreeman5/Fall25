@@ -4,45 +4,55 @@ from scipy.integrate import quad
 import sympy as sp
 pi=np.pi
 
+# Constants
+N = 135 # Number of elements - number of nodes is N+1
+L = 1 # No longer assumed
+h = L/N
+k = 1
+
 ### This section allows for arbitrary manufactured solution
 x = sp.Symbol('x')
-F = sp.pi**2 * sp.sin(sp.pi*x)
-f = -sp.diff(F,x,2)
-exact = sp.lambdify(x,F,'numpy')
-forcing_func = sp.lambdify(x,f,'numpy')
+t = sp.Symbol('t')
+F = x**2 / (t+1)
+f = sp.diff(F, t, 1) - k * sp.diff(F, x, 2)
+exact = sp.lambdify((x, t), F, 'numpy')
+forcing_func = sp.lambdify((x, t), f, 'numpy')
+u_l = lambda t_val: exact(0.0, t_val)
+u_r = lambda t_val: exact(L, t_val)
 
-
-L = 1 # No longer assumed
-u_l, u_r = exact(0.0), exact(L)
-N = 135 # Number of elements - number of nodes is N+1
-h = L/N
 
 
 def create_elemental_K():
     K_e=np.array([[1,-1],[-1,1]])*1/h
     return K_e
 
-def create_elemental_f(element_idx):
+def create_elemental_M():
+    M_e=np.array([[2,1],[1,2]])*(h/6)
+    return M_e
+
+def create_elemental_f(element_idx, t_current):
     f = np.zeros(2)
     start_x = (element_idx-1)*h
-    forcing_function = lambda xbar: forcing_func(xbar+start_x)
+    forcing_function = lambda xbar: forcing_func(xbar+start_x,t_current)
     f_phi_1 = lambda x: (1-x/h)*forcing_function(x)
     f_phi_2 = lambda x: (x/h)*forcing_function(x)
     f[0] = quad(f_phi_1, 0, h)[0]
     f[1] = quad(f_phi_2, 0, h)[0]
     return f
 
-def assemble_global_K_f():
+def assemble_global_K_M_f(t_current):
     K_e = create_elemental_K()
+    M_e = create_elemental_M()
     K = np.zeros((N+1,N+1))
+    M = np.zeros((N+1,N+1))
     f = np.zeros(N+1)
-    K[0,:2] = K_e[0]
-    f[0] = create_elemental_f(1)[0]
+    K[0,:2], M[0,:2] = M_e[0]
+    f[0] = create_elemental_f(1, t_current)[0]
     for i in range(1,N):
         # Create row i
-        K[i,i-1] = K_e[1,0]
-        K[i,i+1] = K_e[0,1]
-        K[i,i] = K_e[0,0] + K_e[1,1]
+        K[i,i-1], M[i,i-1] = K_e[1,0], M_e[1,0]
+        K[i,i+1], M[i,i+1] = K_e[0,1], M_e[0,1]
+        K[i,i], M[i,i] = K_e[0,0] + K_e[1,1], M_e[0,0] + M_e[1,1]
         f[i] = create_elemental_f(i)[1] + create_elemental_f(i+1)[0] # Maybe wrong indices?
     K[-1,-2:] = K_e[-1]
     f[-1] = create_elemental_f(N)[1]
