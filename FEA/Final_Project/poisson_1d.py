@@ -6,15 +6,15 @@ pi=np.pi
 
 ### This section allows for arbitrary manufactured solution
 x = sp.Symbol('x')
-F = sp.pi**2 * sp.sin(sp.pi*x)
+F = sp.pi**2 * sp.sin(sp.pi*x) * sp.exp(x)
 f = -sp.diff(F,x,2)
 exact = sp.lambdify(x,F,'numpy')
 forcing_func = sp.lambdify(x,f,'numpy')
 
 
-L = 1 # No longer assumed
+L = 4 # No longer assumed
 u_l, u_r = exact(0.0), exact(L)
-N = 135 # Number of elements - number of nodes is N+1
+N = 10 # Number of elements - number of nodes is N+1
 h = L/N
 
 
