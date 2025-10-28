@@ -17,7 +17,7 @@ if __name__ == '__main__':
     k_e = np.zeros((4,4))
     for i in range(4):
         for j in range(4):
-            k_e[i,j] = sp.integrate(dphis[i]*dphis[j],(x,0,10))
+            k_e[i,j] = sp.integrate(dphis[i]*dphis[j],(x,0,h))
 
     print(k_e)
     f_e1 = np.zeros(4)
@@ -26,7 +26,7 @@ if __name__ == '__main__':
     print(f_e1)
     f_e2 = np.zeros(4)
     for i in range(4):
-        f_e2[i] = 1000*phis[0].subs(x,5).evalf()
+        f_e2[i] = 1000*phis[i].subs(x,5).evalf()
     print(f_e2)
 
     k_g = np.zeros((6,6))
