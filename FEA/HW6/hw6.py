@@ -21,7 +21,11 @@ Q_applied = np.array([0,0,0,1E6,0,0]).T
 Q_applied_c = T_c.T@Q_applied
 
 K_c = T_c.T@K_g@T_c
-print(K_c[2,:])
+print('')
+for r in K_c:
+    print(r)
+# print(K_c[2,:])
+print('')
 u3c = Q_applied_c[2]/K_c[2,2]
 print(u3c)
 u_c = np.zeros(6)
