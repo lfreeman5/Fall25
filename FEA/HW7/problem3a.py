@@ -50,4 +50,8 @@ print_matrix(S12, "S12")
 print_matrix(S21, "S21")
 print_matrix(S22, "S22")
 
+
+
 print(10*A/3)
+
+print_matrix(S00+S11+S12+S21+S22, 'S_all')

@@ -46,3 +46,5 @@ print_matrix(6*S11, 'S11')
 print_matrix(4*S12, 'S12')
 print_matrix(4*S21, 'S21')
 print_matrix(6*S22, 'S22')
+
+print_matrix(S00+S11+S12+S21+S22, 'S_All')
