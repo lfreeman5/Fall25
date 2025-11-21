@@ -66,13 +66,13 @@ for istep=1:nsteps; time = dt*istep;
        emax = max(emax,lmax);
     end;
 
-    if mod(istep,400)==0;
-       mesh(X,Y,Er);
-     hold off; mesh(X,Y,U); hold on;  mesh(X,Y,Ue); 
-       xlabel('X',fs,20); ylabel('Y',fs,20);
-       title(['Time = ' num2str([time dt emax])],fs,15);
-       drawnow;
-    end;
+    % if mod(istep,400)==0;
+    %    mesh(X,Y,Er);
+    %  hold off; mesh(X,Y,U); hold on;  mesh(X,Y,Ue); 
+    %    xlabel('X',fs,20); ylabel('Y',fs,20);
+    %    title(['Time = ' num2str([time dt emax])],fs,15);
+    %    drawnow;
+    % end;
 
 end;
 

@@ -1,4 +1,4 @@
-function [kN,kdt,kem,ktm,ktrial] = dt_chk(dt,nstep,kN,kdt,kem,ktm,ktrial)
+function [kN,kdt,kem,ktm,ktrial,X,Y,Er] = dt_chk(dt,nstep,kN,kdt,kem,ktm,ktrial)
 % DT_CHK  Run one RK4 experiment for 2D advection and append results.
 %   [kN,kdt,kem,ktm,ktrial] = dt_chk(dt,nstep,kN,kdt,kem,ktm,ktrial)
 %
@@ -82,7 +82,7 @@ for istep = 1:nsteps
     U = Mask .* ( U + dt6 * (k1 + 2*(k2 + k3) + k4) );
 
     % error evaluation periodically (every 20 steps)
-    if mod(istep,20) == 0
+    if istep == nsteps
        c = cos(time); s = sin(time);
        X0t = c * X0 - s * Y0;
        Y0t = s * X0 + c * Y0;
