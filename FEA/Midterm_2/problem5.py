@@ -89,3 +89,84 @@ plt.title('FEA Solution for $v(x)$')
 plt.grid(True)
 plt.legend()
 plt.show()
+
+# Compute and plot v'(x)
+vprime_vals = np.zeros_like(x_vals)
+
+for e in range(3):
+    n0 = 2*e
+    n1 = 2*e+1
+    n2 = 2*e+2
+    n3 = 2*e+3
+    u_e = u_g[n0:n3+1]
+    mask = (x_vals >= e*h) & (x_vals <= (e+1)*h)
+    x_local = x_vals[mask] - e*h
+    
+    # Derivatives of shape functions
+    dphi_e = [
+        sp.lambdify(x, sp.diff(phis[0], x), 'numpy')(x_local),
+        sp.lambdify(x, sp.diff(phis[1], x), 'numpy')(x_local),
+        sp.lambdify(x, sp.diff(phis[2], x), 'numpy')(x_local),
+        sp.lambdify(x, sp.diff(phis[3], x), 'numpy')(x_local)
+    ]
+    vprime_vals[mask] = u_e[0]*dphi_e[0] + u_e[1]*dphi_e[1] + u_e[2]*dphi_e[2] + u_e[3]*dphi_e[3]
+
+plt.figure()
+plt.plot(x_vals, vprime_vals, label="FEA $v'(x)$", color='orange')
+plt.xlabel('x')
+plt.ylabel('Slope $v\'(x)$')
+plt.title('FEA Solution for $v\'(x)$')
+plt.grid(True)
+plt.legend()
+plt.show()
+
+
+# Compute and plot v''(x) and v'''(x)
+v2_vals = np.zeros_like(x_vals)
+v3_vals = np.zeros_like(x_vals)
+
+for e in range(3):
+    n0 = 2*e
+    n1 = 2*e+1
+    n2 = 2*e+2
+    n3 = 2*e+3
+    u_e = u_g[n0:n3+1]
+    mask = (x_vals >= e*h) & (x_vals <= (e+1)*h)
+    x_local = x_vals[mask] - e*h
+    
+    # Derivatives up to third order
+    d2phi_e = [
+        sp.lambdify(x, sp.diff(phis[0], x, 2), 'numpy')(x_local),
+        sp.lambdify(x, sp.diff(phis[1], x, 2), 'numpy')(x_local),
+        sp.lambdify(x, sp.diff(phis[2], x, 2), 'numpy')(x_local),
+        sp.lambdify(x, sp.diff(phis[3], x, 2), 'numpy')(x_local)
+    ]
+    d3phi_e = [
+        sp.lambdify(x, sp.diff(phis[0], x, 3), 'numpy')(x_local),
+        sp.lambdify(x, sp.diff(phis[1], x, 3), 'numpy')(x_local),
+        sp.lambdify(x, sp.diff(phis[2], x, 3), 'numpy')(x_local),
+        sp.lambdify(x, sp.diff(phis[3], x, 3), 'numpy')(x_local)
+    ]
+    
+    v2_vals[mask] = u_e[0]*d2phi_e[0] + u_e[1]*d2phi_e[1] + u_e[2]*d2phi_e[2] + u_e[3]*d2phi_e[3]
+    v3_vals[mask] = u_e[0]*d3phi_e[0] + u_e[1]*d3phi_e[1] + u_e[2]*d3phi_e[2] + u_e[3]*d3phi_e[3]
+
+# Plot v''(x)
+plt.figure()
+plt.plot(x_vals, v2_vals, label="FEA $v''(x)$", color='green')
+plt.xlabel('x')
+plt.ylabel("Curvature $v''(x)$")
+plt.title("FEA Solution for $v''(x)$")
+plt.grid(True)
+plt.legend()
+
+# Plot v'''(x)
+plt.figure()
+plt.plot(x_vals, v3_vals, label="FEA $v'''(x)$", color='red')
+plt.xlabel('x')
+plt.ylabel("Rate of Curvature Change $v'''(x)$")
+plt.title("FEA Solution for $v'''(x)$")
+plt.grid(True)
+plt.legend()
+
+plt.show()
