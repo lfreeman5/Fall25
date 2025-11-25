@@ -57,7 +57,7 @@ if __name__ == '__main__':
         # Draw the element edges in the order 1-2, 2-3, 3-4, 4-1
         # The nodes array is [n1, n2, n3, n4] and should be connected as:
         # n1-n2, n2-n4, n4-n3, n3-n1 (counterclockwise)
-        edge_pairs = [(0,1), (1,3), (3,2), (2,0)]
+        edge_pairs = [(0,1), (1,2), (2,3), (3,0)]
         for a, b in edge_pairs:
             plt.plot([ex[a], ex[b]], [ey[a], ey[b]], 'b-')
         # Compute centroid for label

@@ -57,21 +57,31 @@ def assemble_global_force_vector(Fe_arr, element_map, N_nodes):
 
     return Fg
 
-def eval_f_e(f,xi,yi,xf,yf):
-    '''
-    f = f(x,y), callable
-    '''
+def eval_f_e(f, xi, yi, xf, yf):
+    # Use 2x2 Gauss quadrature for speed
     a = xf - xi
     b = yf - yi
-    phis = [lambda x, y: (1 - x/a)*(1 - y/b),
-            lambda x, y: (x/a)*(1 - y/b),
-            lambda x, y: (x/a)*(y/b),
-            lambda x, y: (1 - x/a)*(y/b)]
+    # Gauss points and weights for [-1,1]
+    gp = np.array([-1/np.sqrt(3), 1/np.sqrt(3)])
+    w = np.array([1, 1])
+    # Shape functions in reference [-1,1]x[-1,1]
+    N = [
+        lambda xi, eta: 0.25 * (1 - xi) * (1 - eta),
+        lambda xi, eta: 0.25 * (1 + xi) * (1 - eta),
+        lambda xi, eta: 0.25 * (1 + xi) * (1 + eta),
+        lambda xi, eta: 0.25 * (1 - xi) * (1 + eta)
+    ]
     f_e = np.zeros(4)
-    for i in range(4):
-        # Integrate phi[i](x, y) * f(xi + x, yi + y) over x in [0, a], y in [0, b]
-        integrand = lambda y, x: phis[i](x, y) * f(xi + x, yi + y)
-        f_e[i], _ = dblquad(integrand, 0, a, lambda x: 0, lambda x: b)
+    for i in range(2):
+        for j in range(2):
+            xi_gp, eta_gp = gp[i], gp[j]
+            # Map to physical coordinates
+            x = xi + (xi_gp + 1) * a / 2
+            y = yi + (eta_gp + 1) * b / 2
+            fval = f(x, y)
+            for k in range(4):
+                f_e[k] += N[k](xi_gp, eta_gp) * fval * w[i] * w[j]
+    f_e *= (a * b) / 4.0
     return f_e
 
 def calc_all_fe(f, element_map, xg, yg):
@@ -81,108 +91,135 @@ def calc_all_fe(f, element_map, xg, yg):
         xi, yi = xg[e[0]], yg[e[0]]
         xf, yf = xg[e[2]], yg[e[2]]
         fe_arr[i] = eval_f_e(f,xi,yi,xf,yf)
-
     return fe_arr
+
+prev_N = -1
+GLxi, GLwi = None, None
+def gauss_legendre_integrate_1d(f, a, b, n=4):
+    """
+    Perform 1D Gauss-Legendre quadrature of function f over [a, b] with n points.
+    """
+    # Get nodes and weights for [-1, 1]
+    global prev_N, GLxi, GLwi
+    if(prev_N==n):
+        xi, wi = GLxi, GLwi
+    else:
+        GLxi, GLwi = np.polynomial.legendre.leggauss(n)
+        prev_N = n
+        xi, wi = GLxi, GLwi
+    # Change of interval
+    xm = 0.5 * (b + a)
+    xr = 0.5 * (b - a)
+    s = xm + xr * xi
+    return np.sum(wi * f(s)) * xr
 
 def calc_boundary_term(Nx, Ny, dx, dy, xg, yg, q):
     '''
     xg, yg are N=Nx*Ny arrays of global position
     q is the arrays of boundary vectors
+    Uses Gauss-Legendre quadrature for speed.
     '''
     [qt,qb,ql,qr] = q
     N = Nx*Ny
     B = np.zeros(N)
-    phix1 = lambda s: 1+s/dx
-    phix2 = lambda s: 1-s/dx
-    phiy1 = lambda s: 1+s/dy
-    phiy2 = lambda s: 1-s/dy
-    for i in range(Nx): # Bottom and top rows
-        idx = i # Node index for bottom row
-        x_i = xg[idx]
-        q = lambda s: qb(s+x_i)
-        integrand_1 = lambda s: q(s)*phix1(s)
-        integrand_2 = lambda s: q(s)*phix2(s)
-        _, i1 = quad(integrand_1, -dx, 0)
-        _, i2 = quad(integrand_2, 0, dx)
-        if(i==0): # For LHS nodes, only include right integral
-            B[idx] = i2
-        elif(i==Nx-1): # For RHS nodes, only include left integral
-            B[idx] = i1
-        else: 
-            B[idx] = i1+i2
 
+    n_gl = 4  # Number of GL points
 
-        idx = i+(Ny-1)*Nx # Node index for top row
-        x_i = xg[idx]
-        q = lambda s: qt(s+x_i)
-        integrand_1 = lambda s: q(s)*phix1(s)
-        integrand_2 = lambda s: q(s)*phix2(s)
-        _, i1 = quad(integrand_1, -dx, 0)
-        _, i2 = quad(integrand_2, 0, dx)
-        if(i==0): # For LHS nodes, only include right integral
-            B[idx] = i2
-        elif(i==Nx-1): # For RHS nodes, only include left integral
-            B[idx] = i1
-        else: 
-            B[idx] = i1+i2
+    # LHS boundary
+    if(ql is not None):
+        for j in range(Ny):
+            idx = j*Nx
+            y_i = yg[idx]
+            # s in [0, dy]
+            integrand_1 = lambda s: ql(y_i+dy-s)*(s/dy)
+            integrand_2 = lambda s: ql(y_i-s)*(1-s/dy)
+            i1 = gauss_legendre_integrate_1d(integrand_1, 0, dy, n=n_gl)
+            i2 = gauss_legendre_integrate_1d(integrand_2, 0, dy, n=n_gl)
+            if(j==0):
+                B[idx] += i1
+            elif(j==Ny-1):
+                B[idx] += i2
+            else:
+                B[idx] = i1+i2
+    # RHS boundary
+    if(qr is not None):
+        for j in range(Ny):
+            idx = j*Nx + (Nx-1)
+            y_i = yg[idx]
+            integrand_1 = lambda s: qr(y_i-dy+s)*(s/dy)
+            integrand_2 = lambda s: qr(y_i+s)*(1-s/dy)
+            i1 = gauss_legendre_integrate_1d(integrand_1, 0, dy, n=n_gl)
+            i2 = gauss_legendre_integrate_1d(integrand_2, 0, dy, n=n_gl)
+            if(j==0):
+                B[idx] += i2
+            elif(j==Ny-1):
+                B[idx] += i1
+            else:
+                B[idx] = i1+i2
+    # Bottom boundary
+    if(qb is not None):
+        for i in range(Nx):
+            idx = i
+            x_i = xg[idx]
+            integrand_1 = lambda s: qb(x_i - dx + s)*(s/dx)
+            integrand_2 = lambda s: qb(x_i + s)*(1-s/dx)
+            i1 = gauss_legendre_integrate_1d(integrand_1, 0, dx, n=n_gl)
+            i2 = gauss_legendre_integrate_1d(integrand_2, 0, dx, n=n_gl)
+            if(i==0):
+                B[idx] += i2
+            elif(i==Nx-1):
+                B[idx] += i1
+            else:
+                B[idx] = i1+i2
+    # Top boundary 
+    if(qt is not None):
+        for i in range(Nx):
+            idx = i + (Ny-1)*Nx
+            x_i = xg[idx]
+            integrand_1 = lambda s: qt(x_i + dx - s)*(s/dx)
+            integrand_2 = lambda s: qt(x_i - s)*(1-s/dx)
+            i1 = gauss_legendre_integrate_1d(integrand_1, 0, dx, n=n_gl)
+            i2 = gauss_legendre_integrate_1d(integrand_2, 0, dx, n=n_gl)
+            if(i==0):
+                B[idx] += i1
+            elif(i==Nx-1):
+                B[idx] += i2
+            else:
+                B[idx] = i1+i2
 
-    for j in range(Ny):
-        idx = j*Nx # Node index for LHS
-        y_i = yg[idx]
-        q = lambda s: ql(s+y_i)
-        integrand_1 = lambda s: q(s)*phiy1(s)
-        integrand_2 = lambda s: q(s)*phiy2(s)
-        _, i1 = quad(integrand_1, -dy, 0)
-        _, i2 = quad(integrand_2, 0, dy)
-        if(j==0): # For bottom nodes, only include up integral
-            B[idx] = i2
-        elif(j==Ny-1): # For top nodes, only include down integral
-            B[idx] = i1
-        else: 
-            B[idx] = i1+i2
+    return B
 
-        idx = j*Nx + (Nx - 1) # Node index for LHS
-        y_i = yg[idx]
-        q = lambda s: qr(s+y_i)
-        integrand_1 = lambda s: q(s)*phiy1(s)
-        integrand_2 = lambda s: q(s)*phiy2(s)
-        _, i1 = quad(integrand_1, -dy, 0)
-        _, i2 = quad(integrand_2, 0, dy)
-        if(j==0): # For bottom nodes, only include up integral
-            B[idx] = i2
-        elif(j==Ny-1): # For top nodes, only include down integral
-            B[idx] = i1
-        else: 
-            B[idx] = i1+i2
 
 
 def apply_dirichlet_bcs(A, b, Nx, Ny, xg, yg, u):
     [ut, ub, ul, ur] = u
     for i in range(Nx): # Bottom and top rows
-        idx = i # Node index for bottom row
-        x_i = xg[idx]
-        A[idx,:]=0.0
-        A[idx,idx]=1.0
-        b[idx] = ub(x_i)
-
-        idx = i+(Ny-1)*Nx # Node index for top row
-        x_i = xg[idx]
-        A[idx,:]=0.0
-        A[idx,idx]=1.0
-        b[idx] = ut(x_i)
+        if(ub is not None):
+            idx = i # Node index for bottom row
+            x_i = xg[idx]
+            A[idx,:]=0.0
+            A[idx,idx]=1.0
+            b[idx] = ub(x_i)
+        if(ut is not None):
+            idx = i+(Ny-1)*Nx # Node index for top row
+            x_i = xg[idx]
+            A[idx,:]=0.0
+            A[idx,idx]=1.0
+            b[idx] = ut(x_i)
 
     for j in range(Ny):
-        idx = j * Nx
-        y_i = yg[idx]
-        A[idx, :] = 0.0
-        A[idx, idx] = 1.0
-        b[idx] = ul(y_i)
-
-        idx = j * Nx + (Nx - 1)
-        y_i = yg[idx]
-        A[idx, :] = 0.0
-        A[idx, idx] = 1.0
-        b[idx] = ur(y_i)
+        if(ul is not None):
+            idx = j * Nx
+            y_i = yg[idx]
+            A[idx, :] = 0.0
+            A[idx, idx] = 1.0
+            b[idx] = ul(y_i)
+        if(ur is not None):
+            idx = j * Nx + (Nx - 1)
+            y_i = yg[idx]
+            A[idx, :] = 0.0
+            A[idx, idx] = 1.0
+            b[idx] = ur(y_i)
 
     return A, b
 

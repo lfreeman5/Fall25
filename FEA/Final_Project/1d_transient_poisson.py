@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
 import sympy as sp
+from matplotlib import animation  # <-- Add this import
 pi=np.pi
 
 # User parameters
@@ -160,30 +161,49 @@ if __name__ == '__main__':
 
     # Animation
     x_fine = np.linspace(0, L, 10 * N + 1)
+    fig, ax = plt.subplots()
+    line_num, = ax.plot([], [], 'bo-', label='Numerical (nodes)')
+    line_exact, = ax.plot([], [], 'r--', label='Exact')
+    ax.set_xlim(0, L)
+    ax.set_ylim(np.min(u), np.max(u))
+    ax.set_xlabel('x')
+    ax.set_ylabel('u(x, t)')
+    ax.legend()
+    title = ax.set_title("")
+
+    def init():
+        line_num.set_data([], [])
+        line_exact.set_data([], [])
+        title.set_text("")
+        return line_num, line_exact, title
+
+    def animate_linear(i):
+        t = np.insert(time, 0, 0.0)[i]
+        line_num.set_data(x, u[i, :])
+        line_exact.set_data(x_fine, exact(x_fine, t))
+        title.set_text(f"t = {t:.3f} (Linear)")
+        return line_num, line_exact, title
+
+    def animate_quadratic(i):
+        t = np.insert(time, 0, 0.0)[i]
+        u_N_quad = create_u_N_quadratic(u[i, 1:-1], u[i, 0], u[i, -1])
+        u_quad_vals = [u_N_quad(xi) for xi in x_fine]
+        line_num.set_data(x_fine, u_quad_vals)
+        line_exact.set_data(x_fine, exact(x_fine, t))
+        title.set_text(f"t = {t:.3f} (Quadratic)")
+        return line_num, line_exact, title
+
+    num_frames = len(np.insert(time, 0, 0.0))
     if element_type == 'linear':
-        for i, t in enumerate(np.insert(time, 0, 0.0)):
-            plt.clf()
-            plt.plot(x, u[i, :], 'bo-', label='Numerical (nodes)')
-            plt.plot(x_fine, exact(x_fine, t), 'r--', label='Exact')
-            plt.title(f"t = {t:.3f} (Linear)")
-            plt.xlabel('x')
-            plt.ylabel('u(x, t)')
-            plt.legend()
-            plt.pause(0.05)
-        plt.show()
+        anim = animation.FuncAnimation(fig, animate_linear, init_func=init, frames=num_frames, interval=50, blit=True)
     elif element_type == 'quadratic':
-        for i, t in enumerate(np.insert(time, 0, 0.0)):
-            u_N_quad = create_u_N_quadratic(u[i, 1:-1], u[i, 0], u[i, -1])
-            u_quad_vals = [u_N_quad(xi) for xi in x_fine]
-            plt.clf()
-            plt.plot(x_fine, u_quad_vals, 'g-', label='Numerical (quadratic)')
-            plt.plot(x_fine, exact(x_fine, t), 'r--', label='Exact')
-            plt.title(f"t = {t:.3f} (Quadratic)")
-            plt.xlabel('x')
-            plt.ylabel('u(x, t)')
-            plt.legend()
-            plt.pause(0.05)
-        plt.show()
+        anim = animation.FuncAnimation(fig, animate_quadratic, init_func=init, frames=num_frames, interval=50, blit=True)
+
+    # Save animation to mp4
+    anim.save('solution_animation.mp4', writer='ffmpeg', fps=20)
+    print("Animation saved to solution_animation.mp4")
+
+    plt.show()
 
     # Plot only the final timestep
     t_final = time[-1]
