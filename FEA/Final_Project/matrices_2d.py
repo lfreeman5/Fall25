@@ -23,6 +23,7 @@ def create_mass_stiffness_matrices(alpha, dx, dy):
     # Substitute a=dx, b=dy and convert to float numpy arrays
     m_num = np.array(m.subs({'a': dx, 'b': dy})).astype(np.float64)
     k_num = -alpha * np.array(k.subs({'a': dx, 'b': dy})).astype(np.float64)
+    print(k_num*6)
     return m_num, k_num
 
 def assemble_global_mass_stiffness_matrices(Me, Ke, element_map, N_nodes):
@@ -41,6 +42,7 @@ def assemble_global_mass_stiffness_matrices(Me, Ke, element_map, N_nodes):
                 Mg[I, J] += Me[i, j]
                 Kg[I, J] += Ke[i, j]
 
+    print(Kg*6)
     return Mg, Kg
 
 def assemble_global_force_vector(Fe_arr, element_map, N_nodes):

@@ -78,26 +78,51 @@ def solve_2d_heat(params):
 
 if __name__ == '__main__':
     from plotting_2d import plot_solution, animate_solution
-    Nx=60
-    Ny=60
-    u_bound = [None, None, lambda s,t:0, lambda s,t:1] 
-    q_bound = [lambda s,t: 1, lambda s,t: 5*s, None, None]
+
+    # --- Simulation setup ---
+    # Set grid size (number of nodes in x and y directions)
+    Nx = 15
+    Ny = 15
+
+    # Boundary conditions:
+    # u_bound: [top, bottom, left, right] (Dirichlet, function of (s, t) or None)
+    # q_bound: [top, bottom, left, right] (Neumann, function of (s, t) or None)
+    u_bound = [None, lambda s,t: 2, None, None]  # Example: bottom boundary set to 2
+    q_bound = [lambda s,t: s, None, lambda s,t: 0., lambda s,t: 0.]  # Example: top Neumann varies with s
+
+    # Domain discretization
+    dx = 1/(Nx-1)
+    dy = 1/(Ny-1)
+
+    # Physical and numerical parameters
+    alpha = 1         # Diffusivity
+    Nt = 100          # Number of time steps
+    dt = 0.1          # Time step size
+    u0 = np.ones(Nx*Ny)  # Initial condition (uniform)
+
+    # Source term (forcing function)
+    f = lambda x, y, t: 0.0  # No internal heat source by default
+
+    # Pack parameters into a dictionary
     params = {
         'Nx': Nx,
         'Ny': Ny,
-        'dx': 1/(Nx-1),
-        'dy': 1/(Ny-1),
-        'alpha': 1,
-        'Nt': 1000,
-        'dt': 0.0003,
-        'u0': np.ones(Nx*Ny),
+        'dx': dx,
+        'dy': dy,
+        'alpha': alpha,
+        'Nt': Nt,
+        'dt': dt,
+        'u0': u0,
         'u_bound': u_bound,
         'q_bound': q_bound,
-        'f': lambda x, y, t: 0.0 # No forcing by default
+        'f': f
     }
 
+    # --- Run the solver ---
     U, xg, yg, element_map = solve_2d_heat(params)
 
+    # --- Visualization ---
+    # To plot the solution at specific time steps, uncomment below:
     # plot_solution(U[0,:], xg, yg, element_map, title='Initial Condition')
     for timestep in range(params['Nt']):
         t = timestep * params['dt']
@@ -107,6 +132,6 @@ if __name__ == '__main__':
             # plot_solution(U[timestep], xg, yg, element_map, title=f'Solution at t={t}')
     # plot_solution(U[-1,:], xg, yg, element_map, title=f'Solution at t={params["Nt"]*params["dt"]:.2f}')
 
-    # Animate and save to mp4
+    # --- Save animation of the temporal solution ---
     animate_solution(U, xg, yg, element_map, params['dt'], filename="solution_animation.mp4", interval=50, plot_every=10)
     print("Animation saved to solution_animation.mp4")

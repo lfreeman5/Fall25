@@ -31,8 +31,8 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
     # Parameters for the grid
-    Nx, Ny = 7, 4  # number of nodes in x and y
-    dx, dy = 1.0, 1.0
+    Nx, Ny = 5, 5  # number of nodes in x and y
+    dx, dy = 2.0, 1.0
 
     # Generate node coordinates
     x, y = create_xy_global(Nx, Ny, dx, dy)

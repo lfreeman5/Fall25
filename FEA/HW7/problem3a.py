@@ -1,8 +1,8 @@
 import numpy as np
 
-pts=np.array([[1,2],
-              [4,1],
-              [4.5,6]])
+pts=np.array([[1,1],
+              [0,1],
+              [1,0]])
 alpha = np.zeros(3)
 beta = np.zeros(3)
 gamma = np.zeros(3)
@@ -44,14 +44,14 @@ def print_matrix(mat, name):
         print(" ".join(f"{val:10.4f}" for val in row))
     print()
 
-print_matrix(S00, "S00")
-print_matrix(S11, "S11")
-print_matrix(S12, "S12")
-print_matrix(S21, "S21")
-print_matrix(S22, "S22")
+# print_matrix(S00, "S00")
+# print_matrix(S11, "S11")
+# print_matrix(S12, "S12")
+# print_matrix(S21, "S21")
+# print_matrix(S22, "S22")
 
 
 
-print(10*A/3)
+# print(10*A/3)
 
-print_matrix(S00+S11+S12+S21+S22, 'S_all')
+print_matrix(S11+S22, 'Ke for poisson')
